@@ -1,9 +1,66 @@
-test 1
+import streamlit as st
+from google import genai
+from PyPDF2 import PdfReader
 
-222
+st.set_page_config(page_title="AI Study Assistant", layout="wide")
 
-alss
+# ================= 🔑 API KEY & CLIENT =================
+st.sidebar.title("⚙️ 설정")
+api_key = st.sidebar.text_input("Gemini API Key 입력", type="password")
 
-eellee
+if not api_key:
+    st.info("👈 사이드바에 Google AI Studio에서 발급받은 API 키를 입력해 주세요.")
+    st.stop()
 
-jooj
+# Google GenAI 클라이언트 초기화
+client = genai.Client(api_key=api_key)
+
+st.title("📚 AI Study Assistant")
+
+# ================= 🎯 MODE + SUBJECT =================
+col1, col2 = st.columns(2)
+with col1:
+    mode = st.selectbox("Study Mode", ["Normal", "Beginner", "Exam Revision"])
+with col2:
+    subject = st.selectbox("Subject", ["General", "Math", "Science", "Programming", "English"])
+
+# ================= 🧠 CHAT MEMORY =================
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# ================= 📄 PDF UPLOAD & SUMMARY =================
+uploaded_file = st.file_uploader("Upload Study Material (PDF)", type=["pdf"])
+
+def extract_text(file):
+    reader = PdfReader(file)
+    text = ""
+    for page in reader.pages:
+        page_text = page.extract_text()
+        if page_text:
+            text += page_text
+    return text
+
+if uploaded_file:
+    pdf_text = extract_text(uploaded_file)
+
+    if st.button("📄 PDF 내용 요약하기"):
+        with st.spinner("자료를 분석하고 요약하는 중..."):
+            prompt = f"""
+너는 대학생 스터디 그룹을 위한 전문 학습 튜터야.
+아래 제공된 자료를 바탕으로 복습과 시험 대비에 최적화된 마크다운 형식의 정리본을 작성해 줘.
+
+[작성 가이드]
+1. 📌 핵심 요약 (3~5줄로 전체 맥락 요약)
+2. 🔑 핵심 개념 및 원리 정리 (글머리 기호와 볼드체를 써서 구조화)
+3. ⚠️ 혼동하기 쉬운 포인트 또는 주의점
+4. 📝 시험 대비 예상 퀴즈 3개 (정답과 해설 포함)
+
+[공부 자료]:
+{pdf_text[:10000]}
+"""
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+            )
+            st.subheader("📄 PDF 요약 결과")
+            st.success(response.text)
